@@ -40,7 +40,7 @@ To collect the data from the various sources, we use a custom scraping script.
 
 2. Run the scrapers:
    ```bash
-   pnpm exec ts-node src/index.ts
+   pnpm run scrape
    ```
 
 Data will be saved in the `data/` directory. Images are downloaded to `data/images`.
@@ -51,7 +51,7 @@ We use **LanceDB** for vector search and a **React** frontend.
 
 1. **Index Data** (Generate embeddings):
    ```bash
-   pnpm exec ts-node src/index_data.ts
+   pnpm run index
    ```
 
 2. **(Optional) Configure chat LLM provider** in `.env`:
@@ -72,7 +72,7 @@ We use **LanceDB** for vector search and a **React** frontend.
 
 3. **Start Backend Server**:
    ```bash
-   pnpm exec ts-node src/server.ts
+   pnpm run dev:server
    ```
 
 4. **Start Frontend** (in a new terminal):
@@ -81,4 +81,36 @@ We use **LanceDB** for vector search and a **React** frontend.
    pnpm dev
    ```
    Open [http://localhost:5152](http://localhost:5152) to search.
-J
+
+## Deploy naar DigitalOcean (mijnservices.chat)
+
+Deze repo is voorbereid om als 1 container te deployen: backend API + gebouwde frontend op poort `3000`.
+
+### 1) Vereisten
+
+- Domein `mijnservices.chat` met DNS-beheer.
+- DigitalOcean account.
+- Gevulde data/index (bijv. lokaal opgebouwd) in `data/`.
+
+### 2) Deploy via App Platform
+
+1. Push de repo naar GitHub.
+2. In DigitalOcean: **Create App** en selecteer deze repo.
+3. Gebruik de app spec uit `.do/app.yaml`.
+4. Zet secret env var:
+   - `LLM_API_KEY`
+5. Deploy de app.
+
+### 3) Domein koppelen
+
+1. Voeg custom domain `mijnservices.chat` toe in App Platform.
+2. Zet de DNS records die DigitalOcean aangeeft.
+3. Wacht op automatische TLS provisioning.
+
+### 4) Endpoints in productie
+
+- Health: `/health`
+- Search: `/search`
+- Sources: `/sources`
+- Document: `/document`
+- Chat: `/chat` en `/chat/stream`

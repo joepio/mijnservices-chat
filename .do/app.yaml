@@ -1,0 +1,33 @@
+name: mijnservices-chat
+region: ams
+
+services:
+  - name: web
+    dockerfile_path: Dockerfile
+    source_dir: .
+    http_port: 3000
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    routes:
+      - path: /
+    health_check:
+      http_path: /health
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: LLM_PROVIDER
+        value: openrouter
+      - key: LLM_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: LLM_MODEL
+        value: openai/gpt-4o-mini
+      - key: OPENROUTER_HTTP_REFERER
+        value: https://mijnservices.chat
+      - key: OPENROUTER_X_TITLE
+        value: MijnServices Chat
+      - key: LLM_API_KEY
+        type: SECRET
+
+domains:
+  - domain: mijnservices.chat
+    type: PRIMARY

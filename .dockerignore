@@ -1,0 +1,9 @@
+node_modules
+frontend/node_modules
+dist
+frontend/dist
+.git
+.gitignore
+.env
+.cursor
+terminals

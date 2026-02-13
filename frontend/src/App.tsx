@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 import { Search, ExternalLink, Bot, User, Database, SlidersHorizontal } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -29,6 +29,26 @@ interface ChatMessage {
   content: string;
   sources?: ChatSource[];
 }
+
+const SUGGESTED_QUESTIONS = [
+  'Wat zijn de belangrijkste MijnServices componenten?',
+  'Hoe begin ik met implementeren van MijnServices in mijn gemeente?',
+  'Welke leveranciers ondersteunen MijnServices al?',
+  'Wat is het verschil tussen MijnZaken en MijnTaken?',
+  'Welke standaarden gebruikt MijnServices binnen Common Ground?',
+  'Hoe werkt omnichannel dienstverlening met MijnServices?',
+]
+const SUGGESTED_ROWS = [
+  SUGGESTED_QUESTIONS,
+  [
+    'Welke standaarden zijn verplicht voor MijnServices?',
+    'Hoe sluit MijnServices aan op ZGW API 2.0?',
+    'Wat is het verschil tussen MijnOmgeving en medewerkersportaal?',
+    'Welke stappen zijn nodig voor een pilot in mijn gemeente?',
+    'Waar vind ik de referentiearchitectuur voor MijnServices?',
+    'Hoe past MijnServices binnen Common Ground?',
+  ],
+]
 
 type StreamEvent =
   | { event: 'token'; data: { chunk?: string } }
@@ -111,10 +131,15 @@ function App() {
   const [availableSources, setAvailableSources] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
   const [activeSearchQuery, setActiveSearchQuery] = useState('')
+  const chatBottomRef = useRef<HTMLDivElement | null>(null)
 
   const allSources = availableSources.length > 0
     ? availableSources
     : Array.from(new Set(results.map(r => r.source)));
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [chatMessages])
 
   useEffect(() => {
     const fetchSources = async () => {
@@ -170,11 +195,8 @@ function App() {
     : latestAssistantSources;
   const hasConversation = chatMessages.length > 0;
 
-  const handleAskQuestion = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
-    const question = chatInput.trim()
-    if (!question || chatLoading) return
-
+  const submitQuestion = async (question: string) => {
+    if (!question.trim() || chatLoading) return
     const nextHistory: ChatMessage[] = [...chatMessages, { role: 'user', content: question }]
     setChatMessages([...nextHistory, { role: 'assistant', content: '' }])
     setChatInput('')
@@ -306,16 +328,42 @@ function App() {
     }
   }
 
+  const handleAskQuestion = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    const question = chatInput.trim()
+    await submitQuestion(question)
+  }
+
   const resetToCurrentSources = () => {
     setActiveSearchQuery('')
     setQuery('')
+  }
+
+  const resetChatSession = () => {
+    setChatMessages([])
+    setChatInput('')
+    setChatLoading(false)
+    setWaitingForFirstToken(false)
+    setQuery('')
+    setResults([])
+    setLoading(false)
+    setSelectedSources([])
+    setShowFilters(false)
+    setActiveSearchQuery('')
   }
 
   if (!hasConversation) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
         <div className="w-full max-w-3xl text-center space-y-6">
-          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900">MijnServices Chat</h1>
+          <button
+            type="button"
+            onClick={resetChatSession}
+            className="text-4xl sm:text-5xl font-bold text-gray-900 hover:text-gray-700 transition-colors"
+            title="Terug naar startpagina"
+          >
+            MijnServices Chat
+          </button>
           <p className="text-gray-600 text-lg">
             Stel een vraag over de documentatie en krijg direct antwoord met bronverwijzingen.
           </p>
@@ -337,6 +385,29 @@ function App() {
               {chatLoading ? 'Denken...' : 'Verstuur'}
             </button>
           </form>
+
+          <div className="suggestion-marquee-wrap pt-2">
+            {SUGGESTED_ROWS.map((row, rowIdx) => (
+              <div
+                key={`row-${rowIdx}`}
+                className={`suggestion-marquee-track ${rowIdx % 2 === 1 ? 'suggestion-marquee-track-reverse' : ''}`}
+              >
+                {[...row, ...row].map((suggestion, idx) => (
+                  <button
+                    key={`${rowIdx}-${suggestion}-${idx}`}
+                    type="button"
+                    onClick={() => submitQuestion(suggestion)}
+                    disabled={chatLoading}
+                    className="suggestion-pill"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            ))}
+            <div className="suggestion-marquee-fade-left" />
+            <div className="suggestion-marquee-fade-right" />
+          </div>
         </div>
       </div>
     );
@@ -346,7 +417,14 @@ function App() {
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-7xl mx-auto px-4 py-6">
         <header className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">MijnServices Chat</h1>
+          <button
+            type="button"
+            onClick={resetChatSession}
+            className="text-3xl font-bold text-gray-900 hover:text-gray-700 transition-colors"
+            title="Reset chat en ga naar startpagina"
+          >
+            MijnServices Chat
+          </button>
         </header>
 
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start">
@@ -381,6 +459,7 @@ function App() {
                   </div>
                 </div>
               ))}
+              <div ref={chatBottomRef} />
             </div>
 
             <form onSubmit={handleAskQuestion} className="bg-white border border-gray-200 rounded-2xl shadow-sm p-3 flex gap-2 sticky bottom-4">

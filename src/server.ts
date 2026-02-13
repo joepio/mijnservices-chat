@@ -7,8 +7,9 @@ import * as fs from "fs-extra";
 import { ScrapedPage } from "./types";
 
 const app = express();
-const port = 3000;
+const port = Number(process.env.PORT || 3000);
 const DATA_DIR = path.join(__dirname, "../data");
+const FRONTEND_DIST_DIR = path.join(__dirname, "../frontend/dist");
 
 app.use(cors());
 app.use(express.json());
@@ -503,6 +504,17 @@ app.get("/search", async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
+
+if (fs.existsSync(FRONTEND_DIST_DIR)) {
+  app.use(express.static(FRONTEND_DIST_DIR));
+  app.get(/^\/(?!search|sources|document|chat|images|health).*/, (_req, res) => {
+    res.sendFile(path.join(FRONTEND_DIST_DIR, "index.html"));
+  });
+}
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);

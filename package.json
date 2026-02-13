@@ -1,10 +1,17 @@
 {
   "name": "mijnservices-wiki",
   "version": "1.0.0",
-  "description": "## Doel",
-  "main": "index.js",
+  "description": "RAG search and chat for MijnServices sources",
+  "main": "dist/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build:frontend": "pnpm --dir frontend build",
+    "build:backend": "pnpm exec tsc",
+    "build": "pnpm run build:frontend && pnpm run build:backend",
+    "start": "node dist/server.js",
+    "dev:server": "pnpm exec ts-node src/server.ts",
+    "scrape": "pnpm exec ts-node src/index.ts",
+    "index": "pnpm exec ts-node src/index_data.ts",
+    "test": "echo \"No tests configured\""
   },
   "keywords": [],
   "author": "",
