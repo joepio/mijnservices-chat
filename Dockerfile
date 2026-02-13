@@ -8,11 +8,10 @@ COPY package.json pnpm-lock.yaml tsconfig.json ./
 COPY frontend/package.json frontend/
 
 RUN pnpm install --frozen-lockfile
-RUN pnpm --dir frontend install --frozen-lockfile
+RUN pnpm --dir frontend install --no-frozen-lockfile
 
 COPY src ./src
 COPY frontend ./frontend
-COPY data ./data
 
 RUN pnpm run build
 
@@ -27,7 +26,7 @@ RUN pnpm install --prod --frozen-lockfile
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/frontend/dist ./frontend/dist
-COPY --from=builder /app/data ./data
+RUN mkdir -p /app/data/images
 
 ENV NODE_ENV=production
 ENV PORT=3000

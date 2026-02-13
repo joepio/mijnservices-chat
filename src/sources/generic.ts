@@ -20,10 +20,45 @@ export interface GenericScraperConfig extends ScraperConfig {
 
 export class GenericScraper extends BaseScraper {
   private genericConfig: GenericScraperConfig;
+  private readonly blockedSuffixes = [
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".gif",
+    ".svg",
+    ".pdf",
+    ".zip",
+    ".css",
+    ".js",
+    ".xml",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".csv",
+  ];
 
   constructor(config: GenericScraperConfig) {
     super(config);
     this.genericConfig = config;
+  }
+
+  private isBlockedResourceUrl(rawUrl: string, baseUrl?: string): boolean {
+    try {
+      const parsed = new URL(rawUrl, baseUrl);
+      const pathName = parsed.pathname.toLowerCase();
+      return this.blockedSuffixes.some((suffix) => pathName.endsWith(suffix));
+    } catch {
+      return false;
+    }
+  }
+
+  private isDownloadStartError(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+    return error.message.toLowerCase().includes("download is starting");
   }
 
   private normalizeAndFilterUrl(
@@ -46,21 +81,7 @@ export class GenericScraper extends BaseScraper {
         normalized.search = "";
       }
 
-      const pathName = normalized.pathname.toLowerCase();
-      const blockedSuffixes = [
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".webp",
-        ".gif",
-        ".svg",
-        ".pdf",
-        ".zip",
-        ".css",
-        ".js",
-        ".xml",
-      ];
-      if (blockedSuffixes.some((suffix) => pathName.endsWith(suffix))) return null;
+      if (this.isBlockedResourceUrl(normalized.toString())) return null;
 
       if (this.genericConfig.allowedPathPrefixes?.length) {
         const allowed = this.genericConfig.allowedPathPrefixes.some((prefix) =>
@@ -87,6 +108,10 @@ export class GenericScraper extends BaseScraper {
     url: string,
     browser: Browser,
   ): Promise<{ page: ScrapedPage; discoveredLinks: string[] }> {
+    if (this.isBlockedResourceUrl(url)) {
+      throw new Error(`Skipped non-HTML resource: ${url}`);
+    }
+
     console.log(`Scraping ${url}...`);
     const page = await browser.newPage();
     try {
@@ -193,13 +218,27 @@ export class GenericScraper extends BaseScraper {
 
       if (!crawl) {
         for (let i = 0; i < this.genericConfig.urls.length; i += pageConcurrency) {
-          const batch = this.genericConfig.urls.slice(i, i + pageConcurrency);
+          const batch = this.genericConfig.urls
+            .slice(i, i + pageConcurrency)
+            .filter((url) => !this.isBlockedResourceUrl(url));
           const batchResults = await Promise.all(
-            batch.map(async (url) => this.scrapeSingleUrl(url, browser)),
+            batch.map(async (url) => {
+              try {
+                return { ok: true as const, value: await this.scrapeSingleUrl(url, browser) };
+              } catch (error) {
+                if (this.isDownloadStartError(error)) {
+                  console.warn(`Skipping download link (non-HTML): ${url}`);
+                } else {
+                  console.error(`Error scraping ${url}:`, error);
+                }
+                return { ok: false as const };
+              }
+            }),
           );
           for (const item of batchResults) {
-            await this.savePage(item.page);
-            results.push(item.page);
+            if (!item.ok) continue;
+            await this.savePage(item.value.page);
+            results.push(item.value.page);
           }
         }
       } else {
@@ -209,7 +248,9 @@ export class GenericScraper extends BaseScraper {
 
         for (const seed of this.genericConfig.urls) {
           const normalized = this.normalizeAndFilterUrl(seed, seed, seedOrigin) || seed;
-          if (!queue.includes(normalized)) queue.push(normalized);
+          if (!queue.includes(normalized) && !this.isBlockedResourceUrl(normalized)) {
+            queue.push(normalized);
+          }
         }
 
         while (queue.length > 0 && visited.size < maxPages) {
@@ -232,7 +273,11 @@ export class GenericScraper extends BaseScraper {
                 const scraped = await this.scrapeSingleUrl(url, browser);
                 return { ok: true as const, value: scraped };
               } catch (error) {
-                console.error(`Error scraping ${url}:`, error);
+                if (this.isDownloadStartError(error)) {
+                  console.warn(`Skipping download link (non-HTML): ${url}`);
+                } else {
+                  console.error(`Error scraping ${url}:`, error);
+                }
                 return { ok: false as const };
               }
             }),

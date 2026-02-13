@@ -45,6 +45,13 @@ To collect the data from the various sources, we use a custom scraping script.
 
 Data will be saved in the `data/` directory. Images are downloaded to `data/images`.
 
+#### Limitaties (scraping)
+
+- De generic crawler verwerkt alleen HTML-pagina's.
+- Directe downloadlinks (zoals `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.csv`, `.pdf`, `.zip`) worden bewust overgeslagen.
+- Dit voorkomt Playwright-fouten zoals `Download is starting`, maar betekent dat die bestandsinhoud niet automatisch in de RAG-index komt.
+- Notion kan tijdelijk anti-bot/challenge pagina's tonen (`Just a moment...`). Deze URLs worden met backoff opnieuw geprobeerd en daarna eventueel overgeslagen na max retries.
+
 ### Local Search & Frontend
 
 We use **LanceDB** for vector search and a **React** frontend.
@@ -82,32 +89,56 @@ We use **LanceDB** for vector search and a **React** frontend.
    ```
    Open [http://localhost:5152](http://localhost:5152) to search.
 
-## Deploy naar DigitalOcean (mijnservices.chat)
+## Deploy naar DigitalOcean Droplet (mijnservices.chat)
 
-Deze repo is voorbereid om als 1 container te deployen: backend API + gebouwde frontend op poort `3000`.
+Deze repo draait in productie als 2 containers via Docker Compose:
 
-### 1) Vereisten
+- `app` (Node/Express + gebouwde frontend),
+- `caddy` (reverse proxy + automatische HTTPS).
 
-- Domein `mijnservices.chat` met DNS-beheer.
-- DigitalOcean account.
-- Gevulde data/index (bijv. lokaal opgebouwd) in `data/`.
+### 1) Eenmalig op de droplet
 
-### 2) Deploy via App Platform
+1. Installeer Docker + Docker Compose plugin.
+2. Clone deze repo op de server.
+3. Gebruik `template.env` als basis voor je `.env` in de repo-root:
+   ```bash
+   cp template.env .env
+   ```
+   Vul daarna de waarden in (minimaal `LLM_API_KEY`, `LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL`).
+4. Zorg dat map `data/` aanwezig is op de server (met scrape-output + index).
 
-1. Push de repo naar GitHub.
-2. In DigitalOcean: **Create App** en selecteer deze repo.
-3. Gebruik de app spec uit `.do/app.yaml`.
-4. Zet secret env var:
-   - `LLM_API_KEY`
-5. Deploy de app.
+### 2) Data opbouwen/verversen
 
-### 3) Domein koppelen
+Op de droplet (of lokaal en daarna syncen naar de droplet):
 
-1. Voeg custom domain `mijnservices.chat` toe in App Platform.
-2. Zet de DNS records die DigitalOcean aangeeft.
-3. Wacht op automatische TLS provisioning.
+```bash
+pnpm run scrape
+pnpm run index
+```
 
-### 4) Endpoints in productie
+Wil je een echt frisse run, verwijder dan eerst oude data-bestanden.
+
+### 3) Start productiecontainers
+
+```bash
+chmod +x scripts/deploy-droplet.sh
+./scripts/deploy-droplet.sh
+```
+
+Of handmatig:
+
+```bash
+docker compose build --pull
+docker compose up -d --remove-orphans
+```
+
+### 4) Domein en HTTPS
+
+1. Zet DNS `A` record van `mijnservices.chat` naar de droplet IPv4.
+2. Zorg dat poorten `80` en `443` open zijn in firewall.
+3. Caddy regelt daarna automatisch TLS-certificaten.
+
+### 5) Endpoints in productie
 
 - Health: `/health`
 - Search: `/search`

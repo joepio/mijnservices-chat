@@ -1,7 +1,7 @@
 import { BaseScraper } from "../scraper";
 import { ScrapedPage, ScraperConfig } from "../types";
 import * as cheerio from "cheerio";
-import { chromium } from "playwright";
+import { chromium, BrowserContext } from "playwright";
 import path from "path";
 import * as fs from "fs-extra";
 import { createHash } from "crypto";
@@ -91,12 +91,31 @@ export class NotionScraper extends BaseScraper {
     await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  private async createBrowserContext(): Promise<BrowserContext> {
+    return chromium
+      .launch({
+        args: ["--disable-blink-features=AutomationControlled"],
+      })
+      .then((browser) =>
+        browser.newContext({
+          userAgent:
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+          locale: "nl-NL",
+          extraHTTPHeaders: {
+            "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
+          },
+        }),
+      );
+  }
+
   async scrape(): Promise<ScrapedPage[]> {
     const results: ScrapedPage[] = [];
-    const browser = await chromium.launch();
+    const context = await this.createBrowserContext();
     const queue: string[] = [];
     const visited = new Set<string>();
     const attempts = new Map<string, number>();
+    let challengeRetries = 0;
+    let skippedAfterRetries = 0;
     const maxPages = this.notionConfig.maxPages || 150;
     const pageConcurrency = this.notionConfig.pageConcurrency || 1;
     const imageConcurrency = this.notionConfig.imageConcurrency || 3;
@@ -125,7 +144,7 @@ export class NotionScraper extends BaseScraper {
           batchUrls.map(async (currentUrl) => {
             const currentAttempt = attempts.get(currentUrl) ?? 0;
             console.log(`Scraping Notion page: ${currentUrl}...`);
-            const page = await browser.newPage();
+            const page = await context.newPage();
             try {
               await page.goto(currentUrl, {
                 waitUntil: "domcontentloaded",
@@ -227,15 +246,19 @@ export class NotionScraper extends BaseScraper {
         for (const item of batchResults) {
           if (!item) continue;
           if (item.kind === "retry") {
+            challengeRetries += 1;
             if (item.attempt < maxRetries) {
               const nextAttempt = item.attempt + 1;
               attempts.set(item.url, nextAttempt);
+              const jitterMs = Math.floor(Math.random() * 1200);
+              const backoffMs = retryDelayMs * Math.max(1, 2 ** item.attempt) + jitterMs;
               console.warn(
                 `Notion challenge/retry (${nextAttempt}/${maxRetries}) for ${item.url}: ${item.reason}`,
               );
-              await this.sleep(retryDelayMs);
+              await this.sleep(backoffMs);
               if (!queue.includes(item.url)) queue.push(item.url);
             } else {
+              skippedAfterRetries += 1;
               console.warn(
                 `Skipping Notion URL after ${maxRetries} retries: ${item.url} (${item.reason})`,
               );
@@ -262,7 +285,13 @@ export class NotionScraper extends BaseScraper {
     } catch (error) {
       console.error("Error scraping Notion:", error);
     } finally {
-      await browser.close();
+      await context.browser()?.close();
+    }
+
+    if (challengeRetries > 0 || skippedAfterRetries > 0) {
+      console.warn(
+        `Notion crawl summary: ${challengeRetries} challenge retries, ${skippedAfterRetries} URLs skipped after max retries.`,
+      );
     }
 
     return results;
