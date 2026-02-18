@@ -1,4 +1,6 @@
-# MijnServices Wiki
+# MijnServices Chat
+
+Chatinterface & zoekmachine voor MijnServices van VNG.
 
 ## Doel
 
