@@ -10,13 +10,13 @@ Alle bestaande, gefragmenteerde kennis uit verschillende bronnen samenvoegen op 
 
 ## Databronnen
 
-- [ ] [VNG MijnServices site](https://vng.nl/MijnServices)
-- [ ] VNG R Omnichannel Microsoft Teams Bestanden (intern)
-- [ ] [StoryBook](https://nl-design-system.github.io/mijn-services/?path=/docs/mijnservices-intro--docs)
-- [ ] [MijnServices Community](https://nldesignsystem.nl/community/community-sprints/mijn-services-community/overzicht/)
-- [ ] CG Samenwerken [Notion Backlog](https://platformvoordienstverlening.notion.site/e9375da1960249bba23c49d038d3c888?v=2b078b5f4db4808da728000c21a96e11)
-- [ ] [NLDS](https://developer.overheid.nl/communities/nl-design-system)
-- [ ] [GitBook Dienstverleningsplatform](https://dienstverleningsplatform.gitbook.io/platform-generieke-dienstverlening-public)
+- [x] [VNG MijnServices site](https://vng.nl/MijnServices)
+- [x] [StoryBook](https://nl-design-system.github.io/mijn-services/?path=/docs/mijnservices-intro--docs)
+- [x] [MijnServices Community](https://nldesignsystem.nl/community/community-sprints/mijn-services-community/overzicht/)
+- [x] CG Samenwerken [Notion Backlog](https://platformvoordienstverlening.notion.site/e9375da1960249bba23c49d038d3c888?v=2b078b5f4db4808da728000c21a96e11)
+- [x] [NLDS](https://developer.overheid.nl/communities/nl-design-system)
+- [x] [GitBook Dienstverleningsplatform](https://dienstverleningsplatform.gitbook.io/platform-generieke-dienstverlening-public)
+- [x] VNG R Omnichannel Microsoft Teams Bestanden (geplaatst in `data-hardcode/`)
 
 ## Aanpak
 
@@ -27,6 +27,30 @@ Suggestie: we scrapen / laden alle informatie uit al deze bronnen en converteren
 DON werkt met Docusaurus, de kennisbank dan vooral. Hier heeft @terborg al een opzet voor gemaakt.
 
 ## Development
+
+### Quick Start
+
+Get the project up and running with these sequential steps:
+
+```bash
+# 1. Setup
+git clone https://github.com/joepio/mijnservices-wiki.git
+cd mijnservices-wiki
+pnpm install
+pnpm exec playwright install
+
+# 2. Prepare Data
+pnpm run scrape   # Scrape external sources
+pnpm run index    # Process both scraped data and data-hardcode
+
+# 3. Running Locally
+# In terminal 1:
+pnpm run dev:server
+
+# In terminal 2:
+cd frontend
+pnpm dev
+```
 
 ### Scraper
 
@@ -60,6 +84,7 @@ We use **LanceDB** for vector search and a **React** frontend.
    ```bash
    pnpm run index
    ```
+   *Note: This processes both scraped JSON files in `data/` and hardcoded Markdown/text files in `data-hardcode/`.*
 
 2. **(Optional) Configure chat LLM provider** in `.env`:
    ```bash
@@ -107,6 +132,26 @@ Deze repo draait in productie als 2 containers via Docker Compose:
    Vul daarna de waarden in (minimaal `LLM_API_KEY`, `LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL`).
 4. Zorg dat map `data/` aanwezig is op de server (met scrape-output + index).
 
+### 1b) Snelle sync vanaf je lokale machine (aanbevolen)
+
+Als je lokaal al de juiste code + data hebt, sync dan direct naar de droplet:
+
+```bash
+rsync -az --delete \
+  --exclude '.git' \
+  --exclude 'node_modules' \
+  --exclude 'frontend/node_modules' \
+  --exclude 'dist' \
+  --exclude 'frontend/dist' \
+  ./ mijnserviceschat:/root/mijnservices-wiki/
+```
+
+Alleen data opnieuw syncen kan ook:
+
+```bash
+rsync -az data/ mijnserviceschat:/root/mijnservices-wiki/data/
+```
+
 ### 2) Data opbouwen/verversen
 
 Op de droplet (of lokaal en daarna syncen naar de droplet):
@@ -145,3 +190,15 @@ docker compose up -d --remove-orphans
 - Sources: `/sources`
 - Document: `/document`
 - Chat: `/chat` en `/chat/stream`
+
+### 6) Checks na deploy
+
+```bash
+ssh mijnserviceschat 'cd /root/mijnservices-wiki && docker compose ps'
+ssh mijnserviceschat 'cd /root/mijnservices-wiki && docker compose logs --tail=120 app'
+ssh mijnserviceschat 'curl -I http://localhost'
+```
+
+Verwacht:
+- `app` en `caddy` staan op `Up`.
+- HTTP op `localhost` geeft een redirect naar HTTPS.

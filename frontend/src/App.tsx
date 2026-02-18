@@ -55,6 +55,13 @@ type StreamEvent =
   | { event: 'done'; data: { answer?: string; sources?: ChatSource[] } }
   | { event: 'error'; data: { message?: string } };
 
+function stripTrailingSourcesSection(markdown: string): string {
+  if (!markdown) return markdown;
+  const headingPattern = /\n{1,}#{1,6}\s*Bronnen\s*\n[\s\S]*$/i;
+  const plainPattern = /\n{1,}Bronnen\s*\n(?:\s*[-*]\s.*\n?)+$/i;
+  return markdown.replace(headingPattern, '').replace(plainPattern, '').trim();
+}
+
 function parseSseBlock(block: string): StreamEvent | null {
   const lines = block.split('\n');
   let eventName = '';
@@ -90,11 +97,13 @@ function toExcerpt(text: string, maxLen = 260) {
 }
 
 function SourceCard({
+  indexNumber,
   source,
   title,
   url,
   excerpt,
 }: {
+  indexNumber?: number;
   source: string;
   title: string;
   url: string;
@@ -107,8 +116,15 @@ function SourceCard({
       rel="noopener noreferrer"
       className="block rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-colors p-3"
     >
-      <div className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        {source}
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          {source}
+        </div>
+        {typeof indexNumber === 'number' && (
+          <div className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-900 px-1.5 text-[11px] font-semibold text-white">
+            {indexNumber}
+          </div>
+        )}
       </div>
       <div className="text-sm font-semibold text-gray-900 mt-1">{title}</div>
       <div className="text-sm text-gray-600 mt-1 line-clamp-4">{excerpt}</div>
@@ -132,6 +148,7 @@ function App() {
   const [showFilters, setShowFilters] = useState(false)
   const [activeSearchQuery, setActiveSearchQuery] = useState('')
   const chatBottomRef = useRef<HTMLDivElement | null>(null)
+  const sourceListRef = useRef<HTMLDivElement | null>(null)
 
   const allSources = availableSources.length > 0
     ? availableSources
@@ -339,6 +356,13 @@ function App() {
     setQuery('')
   }
 
+  const focusRelevantSources = () => {
+    resetToCurrentSources();
+    requestAnimationFrame(() => {
+      sourceListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   const resetChatSession = () => {
     setChatMessages([])
     setChatInput('')
@@ -454,9 +478,22 @@ function App() {
                         </span>
                       </div>
                     ) : (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.role === 'assistant'
+                          ? stripTrailingSourcesSection(message.content)
+                          : message.content}
+                      </ReactMarkdown>
                     )}
                   </div>
+                  {message.role === 'assistant' && (message.sources?.length || 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={focusRelevantSources}
+                      className="mt-3 text-xs font-medium text-blue-700 hover:text-blue-900"
+                    >
+                      {message.sources!.length} bron{message.sources!.length === 1 ? '' : 'nen'} bekijken rechts
+                    </button>
+                  )}
                 </div>
               ))}
               <div ref={chatBottomRef} />
@@ -567,12 +604,13 @@ function App() {
               )}
             </div>
 
-            <div className="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
+            <div ref={sourceListRef} className="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
               {activeSearchQuery ? (
                 filteredResults.length > 0 ? (
-                  filteredResults.map((result) => (
+                  filteredResults.map((result, idx) => (
                     <SourceCard
                       key={result.id}
+                      indexNumber={idx + 1}
                       source={result.source.toUpperCase()}
                       title={result.title}
                       url={result.url}
@@ -590,6 +628,7 @@ function App() {
                 visibleCurrentSources.map((source, idx) => (
                   <SourceCard
                     key={`${source.url}-${idx}`}
+                    indexNumber={idx + 1}
                     source={source.source.toUpperCase()}
                     title={source.title}
                     url={source.url}

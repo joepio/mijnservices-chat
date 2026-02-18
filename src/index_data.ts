@@ -5,6 +5,7 @@ import { ScrapedPage } from "./types";
 import { v4 as uuidv4 } from "uuid";
 
 const DATA_DIR = path.join(__dirname, "../data");
+const HARDCODE_DIR = path.join(__dirname, "../data-hardcode");
 
 function splitLongText(text: string, maxSize: number): string[] {
   const pieces: string[] = [];
@@ -105,19 +106,46 @@ function chunkText(
   return chunks;
 }
 
-async function main() {
-  console.log("Starting indexing process...");
-  const vectorStore = new VectorStore();
-  await vectorStore.initialize();
-  await vectorStore.reset();
+async function processDirectory(
+  dir: string,
+  vectorStore: VectorStore,
+  isHardcoded: boolean = false,
+) {
+  if (!(await fs.pathExists(dir))) {
+    console.warn(`Directory ${dir} does not exist, skipping...`);
+    return;
+  }
 
-  const files = await fs.readdir(DATA_DIR);
+  const files = await fs.readdir(dir);
   for (const file of files) {
-    if (!file.endsWith(".json")) continue;
+    const filePath = path.join(dir, file);
+    const stats = await fs.stat(filePath);
+    if (stats.isDirectory()) continue;
 
-    const filePath = path.join(DATA_DIR, file);
     try {
-      const page: ScrapedPage = await fs.readJson(filePath);
+      let page: ScrapedPage;
+
+      if (file.endsWith(".json")) {
+        page = await fs.readJson(filePath);
+      } else if (
+        isHardcoded &&
+        (file.endsWith(".md") || file.endsWith(".txt"))
+      ) {
+        const content = await fs.readFile(filePath, "utf-8");
+        page = {
+          url: `file://${filePath}`,
+          title: path.basename(file, path.extname(file)).replace(/-/g, " "),
+          content,
+          source: "internal",
+          images: [],
+          metadata: {
+            timestamp: stats.mtime.toISOString(),
+          },
+        };
+      } else {
+        continue;
+      }
+
       if (!page.content) continue;
 
       console.log(`Processing ${file}...`);
@@ -126,7 +154,7 @@ async function main() {
       const chunks = chunkText(page.content);
       const docs = chunks.map((chunk, i) => ({
         id: uuidv4(),
-        title: `${page.title} (Part ${i + 1})`,
+        title: `${page.title}${chunks.length > 1 ? ` (Part ${i + 1})` : ""}`,
         url: page.url,
         content: chunk,
         source: page.source,
@@ -137,6 +165,21 @@ async function main() {
       console.warn(`Failed to process ${file}:`, e);
     }
   }
+}
+
+async function main() {
+  console.log("Starting indexing process...");
+  const vectorStore = new VectorStore();
+  await vectorStore.initialize();
+  await vectorStore.reset();
+
+  // Process hardcoded data first to ensure internal info is indexed
+  console.log("Indexing hardcoded data (data-hardcode)...");
+  await processDirectory(HARDCODE_DIR, vectorStore, true);
+
+  // Process scraped data
+  console.log("Indexing scraped data (data)...");
+  await processDirectory(DATA_DIR, vectorStore);
 
   console.log("Indexing completed!");
 }

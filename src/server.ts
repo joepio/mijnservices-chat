@@ -242,7 +242,7 @@ function buildLlmMessages(
           "Begin direct met het antwoord; gebruik geen inleidende herhaling van de vraag.",
           "Herhaal de vraag van de gebruiker nooit letterlijk.",
           "Gebruik geen kop die de vraag herhaalt (bijvoorbeeld 'Wat is ...?').",
-          "Noem aan het einde kort de gebruikte bronnen onder kopje 'Bronnen'.",
+          "Geef GEEN aparte bronlijst of kopje 'Bronnen' in het antwoord; bronverwijzingen worden in de UI apart getoond.",
           `Databronnen in deze wiki: ${indexedDataSources.join(", ")}.`,
         ].join(" "),
     },
