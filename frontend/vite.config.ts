@@ -5,13 +5,12 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5152,
     proxy: {
-      "/search": "http://localhost:3000",
-      "/chat": "http://localhost:3000",
-      "/document": "http://localhost:3000",
-      "/sources": "http://localhost:3000",
-      "/images": "http://localhost:3000",
+      "/search": "http://localhost:8787",
+      "/chat": "http://localhost:8787",
+      "/document": "http://localhost:8787",
+      "/sources": "http://localhost:8787",
+      "/images": "http://localhost:8787",
     },
   },
 });

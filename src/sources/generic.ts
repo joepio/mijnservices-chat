@@ -1,7 +1,7 @@
 import { BaseScraper } from "../scraper";
 import { ScrapedPage, ScraperConfig } from "../types";
 import * as cheerio from "cheerio";
-import { chromium, Browser } from "playwright";
+import { chromium, Browser, Page } from "playwright";
 import path from "path";
 
 export interface GenericScraperConfig extends ScraperConfig {
@@ -9,6 +9,7 @@ export interface GenericScraperConfig extends ScraperConfig {
   urls: string[];
   contentSelector: string;
   waitForSelector?: string;
+  beforeExtract?: (page: Page) => Promise<void>;
   crawl?: boolean;
   maxPages?: number;
   pageConcurrency?: number;
@@ -126,6 +127,14 @@ export class GenericScraper extends BaseScraper {
           console.log(
             `Timeout waiting for selector ${this.genericConfig.waitForSelector} on ${url}`,
           );
+        }
+      }
+
+      if (this.genericConfig.beforeExtract) {
+        try {
+          await this.genericConfig.beforeExtract(page);
+        } catch (error) {
+          console.warn(`beforeExtract failed on ${url}:`, error);
         }
       }
 

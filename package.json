@@ -4,11 +4,13 @@
   "description": "RAG search and chat for MijnServices sources",
   "main": "dist/server.js",
   "scripts": {
+    "dev": "pnpm exec concurrently -k -n server,web -c green,cyan \"PORT=8787 pnpm run dev:server\" \"sh -c 'PORT=$(node scripts/choose-port.mjs); echo Frontend: http://localhost:$PORT/; pnpm --dir frontend dev -- --host 127.0.0.1 --port $PORT'\"",
     "build:frontend": "pnpm --dir frontend build",
     "build:backend": "pnpm exec tsc",
     "build": "pnpm run build:frontend && pnpm run build:backend",
     "start": "node dist/server.js",
     "dev:server": "pnpm exec ts-node src/server.ts",
+    "dev:frontend": "sh -c 'PORT=$(node scripts/choose-port.mjs); echo Frontend: http://localhost:$PORT/; pnpm --dir frontend dev -- --host 127.0.0.1 --port $PORT'",
     "scrape": "pnpm exec ts-node src/index.ts",
     "index": "pnpm exec ts-node src/index_data.ts",
     "test": "echo \"No tests configured\""
@@ -38,7 +40,8 @@
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6"
+    "@types/express": "^5.0.6",
+    "concurrently": "^9.2.1"
   },
   "pnpm": {
     "overrides": {

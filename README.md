@@ -15,6 +15,7 @@ Alle bestaande, gefragmenteerde kennis uit verschillende bronnen samenvoegen op 
 - [x] [VNG MijnServices site](https://vng.nl/MijnServices)
 - [x] [StoryBook](https://nl-design-system.github.io/mijn-services/?path=/docs/mijnservices-intro--docs)
 - [x] [MijnServices Community](https://nldesignsystem.nl/community/community-sprints/mijn-services-community/overzicht/)
+- [x] [NL Design System GitHub Discussions](https://github.com/orgs/nl-design-system/discussions)
 - [x] CG Samenwerken [Notion Backlog](https://platformvoordienstverlening.notion.site/e9375da1960249bba23c49d038d3c888?v=2b078b5f4db4808da728000c21a96e11)
 - [x] [NLDS](https://developer.overheid.nl/communities/nl-design-system)
 - [x] [GitBook Dienstverleningsplatform](https://dienstverleningsplatform.gitbook.io/platform-generieke-dienstverlening-public)
@@ -59,6 +60,7 @@ pnpm dev
 To collect the data from the various sources, we use a custom scraping script.
 
 1. Install dependencies:
+
    ```bash
    pnpm install
    pnpm exec playwright install
@@ -83,12 +85,15 @@ Data will be saved in the `data/` directory. Images are downloaded to `data/imag
 We use **LanceDB** for vector search and a **React** frontend.
 
 1. **Index Data** (Generate embeddings):
+
    ```bash
    pnpm run index
    ```
-   *Note: This processes both scraped JSON files in `data/` and hardcoded Markdown/text files in `data-hardcode/`.*
+
+   _Note: This processes both scraped JSON files in `data/` and hardcoded Markdown/text files in `data-hardcode/`._
 
 2. **(Optional) Configure chat LLM provider** in `.env`:
+
    ```bash
    # Generic (OpenAI-compatible) settings
    LLM_PROVIDER=openrouter
@@ -98,13 +103,15 @@ We use **LanceDB** for vector search and a **React** frontend.
 
    # Optional OpenRouter headers
    OPENROUTER_HTTP_REFERER=http://localhost:5152
-   OPENROUTER_X_TITLE=MijnServices Wiki
+   OPENROUTER_X_TITLE=MijnServices Chat
    ```
+
    Notes:
    - If no LLM key is configured, chat falls back to extractive answers from retrieved chunks.
    - You can also use OpenAI by setting `LLM_PROVIDER=openai` with `LLM_API_KEY` (or `OPENAI_API_KEY`).
 
 3. **Start Backend Server**:
+
    ```bash
    pnpm run dev:server
    ```
@@ -202,5 +209,6 @@ ssh mijnserviceschat 'curl -I http://localhost'
 ```
 
 Verwacht:
+
 - `app` en `caddy` staan op `Up`.
 - HTTP op `localhost` geeft een redirect naar HTTPS.

@@ -24,8 +24,19 @@ async function runWithConcurrency(
   await Promise.all(workers);
 }
 
+function parseScrapeOnlyEnv(): Set<string> | null {
+  const raw = (process.env.SCRAPE_ONLY || "").trim();
+  if (!raw) return null;
+  const parts = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.length ? new Set(parts) : null;
+}
+
 async function main() {
   console.log("Starting scraping process...");
+  const scrapeOnly = parseScrapeOnlyEnv();
 
   // 1. VNG MijnServices
   const vngScraper = new GenericScraper({
@@ -81,6 +92,53 @@ async function main() {
     allowedPathPrefixes: ["/communities/nl-design-system"],
   });
 
+  // 4b. NL Design System GitHub Discussions
+  const nldsDiscussionsScraper = new GenericScraper({
+    ...config,
+    source: "nlds-discussions",
+    urls: ["https://github.com/orgs/nl-design-system/discussions"],
+    contentSelector: "main",
+    beforeExtract: async (page) => {
+      // GitHub loads comment threads progressively; encourage full hydration.
+      for (let i = 0; i < 12; i++) {
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await page.waitForTimeout(350);
+      }
+
+      // Expand any "load more / show more" style buttons repeatedly.
+      const selectors = [
+        'button:has-text("Load more")',
+        'button:has-text("Show more")',
+        'button:has-text("Show")',
+        'summary:has-text("Load more")',
+        'summary:has-text("Show more")',
+      ];
+
+      for (let pass = 0; pass < 6; pass++) {
+        let clicked = 0;
+        for (const sel of selectors) {
+          const locator = page.locator(sel);
+          const count = await locator.count();
+          for (let i = 0; i < count; i++) {
+            try {
+              await locator.nth(i).click({ timeout: 800 });
+              clicked++;
+              await page.waitForTimeout(200);
+            } catch {
+              // ignore
+            }
+          }
+        }
+        if (clicked === 0) break;
+      }
+    },
+    crawl: true,
+    maxPages: 40,
+    pageConcurrency: 2,
+    imageConcurrency: 1,
+    allowedPathPrefixes: ["/orgs/nl-design-system/discussions"],
+  });
+
   // 5. GitBook
   const gitbookScraper = new GitBookScraper({
     ...config,
@@ -105,15 +163,29 @@ async function main() {
     minPageDelayMs: 400,
   });
 
+  const allTasks: Array<{ source: string; run: () => Promise<void> }> = [
+    { source: "vng", run: () => vngScraper.scrape().then(() => undefined) },
+    { source: "storybook", run: () => storybookScraper.scrape().then(() => undefined) },
+    { source: "community", run: () => communityScraper.scrape().then(() => undefined) },
+    { source: "nlds", run: () => nldsScraper.scrape().then(() => undefined) },
+    {
+      source: "nlds-discussions",
+      run: () => nldsDiscussionsScraper.scrape().then(() => undefined),
+    },
+    { source: "gitbook", run: () => gitbookScraper.scrape().then(() => undefined) },
+    { source: "notion", run: () => notionScraper.scrape().then(() => undefined) },
+  ];
+
+  const selectedTasks = scrapeOnly
+    ? allTasks.filter((t) => scrapeOnly.has(t.source))
+    : allTasks;
+
+  if (scrapeOnly) {
+    console.log(`SCRAPE_ONLY enabled. Running sources: ${selectedTasks.map((t) => t.source).join(", ")}`);
+  }
+
   await runWithConcurrency(
-    [
-      () => vngScraper.scrape().then(() => undefined),
-      () => storybookScraper.scrape().then(() => undefined),
-      () => communityScraper.scrape().then(() => undefined),
-      () => nldsScraper.scrape().then(() => undefined),
-      () => gitbookScraper.scrape().then(() => undefined),
-      () => notionScraper.scrape().then(() => undefined),
-    ],
+    selectedTasks.map((t) => t.run),
     3,
   );
 

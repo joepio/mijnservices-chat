@@ -127,7 +127,33 @@ function SourceCard({
         )}
       </div>
       <div className="text-sm font-semibold text-gray-900 mt-1">{title}</div>
-      <div className="text-sm text-gray-600 mt-1 line-clamp-4">{excerpt}</div>
+      <div className="text-sm text-gray-600 mt-1 line-clamp-4">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            a: ({ href, children }) => (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-700 underline underline-offset-2 hover:text-blue-800"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {children}
+              </a>
+            ),
+            img: () => null,
+            h1: ({ children }) => <strong>{children}</strong>,
+            h2: ({ children }) => <strong>{children}</strong>,
+            h3: ({ children }) => <strong>{children}</strong>,
+            h4: ({ children }) => <strong>{children}</strong>,
+            h5: ({ children }) => <strong>{children}</strong>,
+            h6: ({ children }) => <strong>{children}</strong>,
+          }}
+        >
+          {excerpt}
+        </ReactMarkdown>
+      </div>
       <div className="mt-2 text-xs text-blue-700 font-medium inline-flex items-center gap-1">
         Open bron <ExternalLink className="h-3 w-3" />
       </div>
